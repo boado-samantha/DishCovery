@@ -107,7 +107,7 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
         val allDetections = detectionStorage.getAllDetections()
 
         // First filter by confidence level
-        val highConfidenceDetections = allDetections.filter { it.boundingBox.cnf >= 0.80f }
+        val highConfidenceDetections = allDetections.filter { it.boundingBox.cnf >= 0.60f }
 
         if (highConfidenceDetections.isEmpty()) {
             Toast.makeText(this, "No ingredients detected yet", Toast.LENGTH_SHORT).show()
