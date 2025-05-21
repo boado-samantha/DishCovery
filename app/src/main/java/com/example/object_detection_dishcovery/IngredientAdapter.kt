@@ -15,7 +15,7 @@ class IngredientAdapter(private val ingredients: List<IngredientData>) :
 
     class IngredientViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val ingredientNameText: TextView = itemView.findViewById(R.id.ingredientNameText)
-        val ingredientCheckmark: ImageView = itemView.findViewById(R.id.ingredientCheckmark)
+        val ingredientCheckmark: ImageView = itemView.findViewById(R.id.ingredientEdit)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): IngredientViewHolder {

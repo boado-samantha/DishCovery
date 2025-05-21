@@ -19,33 +19,53 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- Header with app title -->
-    <LinearLayout
-        android:id="@+id/headerLayout"
+    <!-- TOP BAR SECTION -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/topBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="#99000000"
-        android:orientation="horizontal"
-        android:padding="16dp"
         app:layout_constraintTop_toTopOf="parent">
 
+        <!-- CLOSE (X) ICON -->
+        <ImageView
+            android:id="@+id/icon_close"
+            android:layout_width="45dp"
+            android:layout_height="45dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="48dp"
+            android:src="@drawable/ic_close_header"
+            android:contentDescription="Close"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toStartOf="parent" />
+
+        <!-- TITLE: INGREDIENT SCANNER -->
         <TextView
-            android:layout_width="0dp"
+            android:id="@+id/ingredient_scanner_title"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
             android:text="Ingredient Scanner"
             android:textColor="#FFFFFF"
             android:textSize="18sp"
-            android:textStyle="bold" />
+            android:textStyle="bold"
+            android:layout_marginTop="60dp"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
 
-        <ImageButton
-            android:id="@+id/btnInfo"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_info_details"
-            app:tint="#FFFFFF" />
-    </LinearLayout>
+        <!-- HELP (?) ICON -->
+        <ImageView
+            android:id="@+id/helpButton"
+            android:layout_width="45dp"
+            android:layout_height="45dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="45dp"
+            android:background="@drawable/circle_background"
+            android:padding="12dp"
+            android:src="@drawable/ic_help"
+            android:contentDescription="Help"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
     <!-- Inference time display -->
     <TextView
@@ -59,7 +79,7 @@
         android:textSize="16sp"
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/headerLayout"
+        app:layout_constraintTop_toBottomOf="@id/topBar"
         tools:text="80ms" />
 
     <!-- Detection count display -->
@@ -75,49 +95,58 @@
         android:textSize="16sp"
         android:visibility="gone"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/headerLayout" />
+        app:layout_constraintTop_toBottomOf="@id/topBar" />
 
-    <!-- Bottom Navigation Bar -->
-    <LinearLayout
-        android:id="@+id/bottomNavLayout"
+    <!-- BOTTOM CONTROL SECTION -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/bottomControls"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="#FFFFFF"
-        android:gravity="center"
-        android:orientation="horizontal"
-        android:padding="16dp"
         app:layout_constraintBottom_toBottomOf="parent">
 
-        <ImageButton
+        <!-- BOTTOM LEFT VEGETABLE ICON -->
+        <ImageView
             android:id="@+id/btnHome"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_close_clear_cancel"
-            app:tint="#FF0000"
-            android:enabled="false" />
+            android:layout_width="55dp"
+            android:layout_height="55dp"
+            android:layout_marginStart="42dp"
+            android:layout_marginBottom="42dp"
+            android:background="@drawable/circle_white_background"
+            android:padding="4dp"
+            android:src="@drawable/clear_x"
+            android:contentDescription="x icon"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent" />
 
-
-        <ImageButton
+        <!-- CENTER SCAN BUTTON -->
+        <ImageView
             android:id="@+id/btnToggleScan"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_search"
-            app:tint="#4CAF50" />
+            android:layout_width="86dp"
+            android:layout_height="81dp"
+            android:layout_marginBottom="32dp"
+            android:background="@drawable/circle_green_background"
+            android:padding="16dp"
+            android:src="@drawable/ic_scan"
+            android:contentDescription="Scan Button"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
 
-        <ImageButton
+        <!-- BOTTOM RIGHT FLASH ICON -->
+        <ImageView
             android:id="@+id/btnShowData"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_agenda"
-            app:tint="#4CAF50" />
+            android:layout_width="55dp"
+            android:layout_height="55dp"
+            android:layout_marginEnd="42dp"
+            android:layout_marginBottom="42dp"
+            android:background="@drawable/circle_gray_background"
+            android:padding="12dp"
+            android:src="@drawable/ic_showdata"
+            android:contentDescription="list icon"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent" />
 
-    </LinearLayout>
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
     <!-- Floating Action Button for clearing data -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -128,7 +157,7 @@
         android:contentDescription="Clear detected data"
         android:src="@android:drawable/ic_menu_delete"
         android:visibility="gone"
-        app:layout_constraintBottom_toTopOf="@id/bottomNavLayout"
+        app:layout_constraintBottom_toTopOf="@id/bottomControls"
         app:layout_constraintEnd_toEndOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
