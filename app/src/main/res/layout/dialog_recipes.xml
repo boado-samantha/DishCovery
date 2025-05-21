@@ -8,7 +8,7 @@
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/purple_500"
+        android:background="@color/green_dishcovery"
         android:padding="16dp">
 
         <TextView
@@ -34,6 +34,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:padding="16dp"
+        android:textColor="#4A4E48"
         android:text="Ingredients used: Apple, Banana, Carrot"
         android:textSize="16sp" />
 

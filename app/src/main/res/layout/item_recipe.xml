@@ -10,6 +10,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
+        android:background="@color/lightgreen_dishcovery"
         android:padding="16dp">
 
         <TextView
@@ -18,6 +19,7 @@
             android:layout_height="wrap_content"
             android:text="Recipe Name"
             android:textSize="18sp"
+            android:textColor="#2A5D00"
             android:textStyle="bold" />
 
         <TextView
@@ -25,6 +27,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
+            android:textColor="#000000"
             android:text="Ingredients match: 75%" />
 
         <TextView
@@ -32,6 +35,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
+            android:textColor="#000000"
             android:text="Prep time: 15 minutes" />
 
     </LinearLayout>
