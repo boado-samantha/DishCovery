@@ -11,11 +11,14 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.Window
 import android.widget.Button
+import android.widget.EditText
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.AspectRatio
 import androidx.camera.core.Camera
@@ -32,9 +35,6 @@ import com.example.object_detection_dishcovery.Constants.MODEL_PATH
 import com.example.object_detection_dishcovery.databinding.ActivityMainBinding
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import com.example.object_detection_dishcovery.RecipeManager
-
-private val recipeManager = RecipeManager()
 
 class MainActivity : AppCompatActivity(), Detector.DetectorListener {
     private lateinit var binding: ActivityMainBinding
@@ -46,8 +46,12 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
     private var cameraProvider: ProcessCameraProvider? = null
     private lateinit var detector: Detector
 
-    // Add detection storage
+    // Database and storage (ADDED - not changed)
+    private lateinit var databaseHelper: DatabaseHelper
     private val detectionStorage = DetectionStorage()
+
+    // Session tracking (ADDED - not changed)
+    private var currentSessionId: Long = -1
 
     private lateinit var cameraExecutor: ExecutorService
 
@@ -55,6 +59,9 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        // Initialize database (ADDED)
+        databaseHelper = DatabaseHelper(this)
 
         detector = Detector(baseContext, MODEL_PATH, LABELS_PATH, this)
         detector.setup()
@@ -67,11 +74,17 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
 
         cameraExecutor = Executors.newSingleThreadExecutor()
 
-        // Setup toggle scan button
+        // Setup toggle scan button (keeping your original logic)
         setupScanButton()
 
-        // Setup data management buttons
+        // Setup data management buttons (keeping your original logic)
         setupDataManagementButtons()
+
+        // ADDED: Make other icons functional
+        setupAdditionalIcons()
+
+        // ADDED: Start session tracking
+        startNewSession()
     }
 
     private fun setupScanButton() {
@@ -87,8 +100,8 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
 
     private fun setupDataManagementButtons() {
         binding.btnClearData.setOnClickListener {
-            detectionStorage.clearDetections()
-            Toast.makeText(this, "Ingredient data cleared", Toast.LENGTH_SHORT).show()
+            // ENHANCED: Show confirmation dialog instead of direct clear
+            showClearDataConfirmationDialog()
         }
 
         binding.btnShowData.setOnClickListener {
@@ -96,18 +109,107 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
         }
 
         binding.btnHome.setOnClickListener {
-            detectionStorage.clearDetections()
-            Toast.makeText(this, "Ingredient data cleared", Toast.LENGTH_SHORT).show()
+            // ENHANCED: Show confirmation dialog instead of direct clear
+            showClearDataConfirmationDialog()
+        }
+    }
+
+    // ADDED: Make previously non-functional icons work
+    private fun setupAdditionalIcons() {
+        // Close button functionality
+        binding.iconClose.setOnClickListener {
+            showExitConfirmationDialog()
         }
 
+        // Help button functionality
+        binding.helpButton.setOnClickListener {
+            showHelpDialog()
+        }
+    }
+
+    // ADDED: Session management
+    private fun startNewSession() {
+        currentSessionId = databaseHelper.startScanSession()
+        Log.d(TAG, "Started new scan session: $currentSessionId")
+    }
+
+    private fun endCurrentSession() {
+        if (currentSessionId != -1L) {
+            databaseHelper.endScanSession(currentSessionId)
+            Log.d(TAG, "Ended scan session: $currentSessionId")
+        }
+    }
+
+    // ADDED: Dialog functions
+    private fun showExitConfirmationDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Exit App")
+            .setMessage("Are you sure you want to exit?")
+            .setPositiveButton("Yes") { _, _ ->
+                endCurrentSession()
+                finish()
+            }
+            .setNegativeButton("No", null)
+            .show()
+    }
+
+    private fun showHelpDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("How to Use Ingredient Scanner")
+            .setMessage("""
+                1. Point your camera at ingredients
+                2. Tap the scan button to start/stop scanning
+                3. Detected ingredients will appear with bounding boxes
+                4. Tap the list icon to view detected ingredients
+                5. Get recipe recommendations based on your ingredients
+                
+                Tips:
+                • Keep ingredients well-lit and in focus
+                • Scanner works best with: Apple, Banana, Carrot, Egg, Tomato
+                • Higher confidence detections are more accurate
+            """.trimIndent())
+            .setPositiveButton("Got it!", null)
+            .show()
+    }
+
+    private fun showClearDataConfirmationDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Clear All Data")
+            .setMessage("This will clear all detected ingredients and detection history. Are you sure?")
+            .setPositiveButton("Clear") { _, _ ->
+                clearAllData()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun clearAllData() {
+        // Clear database (ENHANCED)
+        databaseHelper.clearAllDetections()
+
+        // Keep your original memory clearing
+        detectionStorage.clearDetections()
+        Toast.makeText(this, "Ingredient data cleared", Toast.LENGTH_SHORT).show()
+
+        // ADDED: Session management
+        endCurrentSession()
+        startNewSession()
     }
 
     private fun showIngredientsDialog() {
-        // Get all detections and filter by confidence level
+        // ENHANCED: Get from database instead of just memory
         val allDetections = detectionStorage.getAllDetections()
+        val dbIngredients = databaseHelper.getUniqueIngredientsWithHighConfidence(0.60f)
+
+        // Use database data if available, fallback to memory storage
+        val detections = if (dbIngredients.isNotEmpty()) {
+            dbIngredients.map { it.detectionData }
+        } else {
+            allDetections
+        }
 
         // First filter by confidence level
-        val highConfidenceDetections = allDetections.filter { it.boundingBox.cnf >= 0.60f }
+        val highConfidenceDetections = detections.filter { it.boundingBox.cnf >= 0.60f }
 
         if (highConfidenceDetections.isEmpty()) {
             Toast.makeText(this, "No ingredients detected yet", Toast.LENGTH_SHORT).show()
@@ -142,9 +244,9 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
                 name = detection.boundingBox.clsName,
                 detectionData = detection
             )
-        }
+        }.toMutableList()
 
-        // Create and show the dialog
+        // Create and show the dialog (keeping your original dialog)
         val dialog = Dialog(this, android.R.style.Theme_Translucent_NoTitleBar)
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
         dialog.setContentView(R.layout.dialog_ingredients)
@@ -155,16 +257,62 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
             dialog.dismiss()
         }
 
-        // Set up ingredients list
+        // Set up ingredients list with functional edit/delete icons
         val container = dialog.findViewById<LinearLayout>(R.id.ingredientsContainer)
         container.removeAllViews()
 
         // Add ingredients to the container
         val inflater = LayoutInflater.from(this)
-        for (ingredient in ingredients) {
+        ingredients.forEachIndexed { index, ingredient ->
             val itemView = inflater.inflate(R.layout.item_ingredient, container, false)
             val nameText = itemView.findViewById<TextView>(R.id.ingredientNameText)
+            val editIcon = itemView.findViewById<ImageView>(R.id.ingredientEdit)
+            val deleteIcon = itemView.findViewById<ImageView>(R.id.deleteIcon1)
+
             nameText.text = ingredient.name
+
+            // Set up edit functionality with null check
+            editIcon?.setOnClickListener {
+                showEditIngredientDialog(ingredient.name) { newName ->
+                    if (newName.isNotEmpty() && newName != ingredient.name) {
+                        // Update the ingredient name in database
+                        val success = updateIngredientName(ingredient.name, newName)
+                        if (success) {
+                            // Update the UI
+                            nameText.text = newName
+                            // Update the ingredient object
+                            ingredient.name = newName
+                            Toast.makeText(this, "Ingredient updated to: $newName", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(this, "Failed to update ingredient", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+
+            // Set up delete functionality with null check
+            deleteIcon?.setOnClickListener {
+                showDeleteConfirmationDialog(ingredient.name) {
+                    // Delete from database
+                    val success = deleteIngredient(ingredient.name)
+                    if (success) {
+                        // Remove from UI
+                        container.removeView(itemView)
+                        // Remove from list
+                        ingredients.removeAt(index)
+                        Toast.makeText(this, "Ingredient '${ingredient.name}' deleted", Toast.LENGTH_SHORT).show()
+
+                        // If no ingredients left, close dialog
+                        if (ingredients.isEmpty()) {
+                            Toast.makeText(this, "No ingredients remaining", Toast.LENGTH_SHORT).show()
+                            dialog.dismiss()
+                        }
+                    } else {
+                        Toast.makeText(this, "Failed to delete ingredient", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+
             container.addView(itemView)
         }
 
@@ -174,9 +322,10 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
             Toast.makeText(this, "Finding recipes for your ingredients...", Toast.LENGTH_SHORT).show()
             dialog.dismiss()
 
-            // Add this - call the new method to show recipes
+            // ENHANCED: Use database for recipe matching
             showRecipesDialog(ingredients.map { it.name })
         }
+
         // Show the dialog
         dialog.show()
 
@@ -188,8 +337,109 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
         }
     }
 
+    // ADDED: Helper methods for edit/delete functionality
+    private fun showEditIngredientDialog(currentName: String, onUpdate: (String) -> Unit) {
+        val editText = EditText(this).apply {
+            setText(currentName)
+            hint = "Enter new ingredient name"
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Edit Ingredient")
+            .setMessage("Change '$currentName' to:")
+            .setView(editText)
+            .setPositiveButton("Update") { _, _ ->
+                val newName = editText.text.toString().trim()
+                if (newName.isNotEmpty()) {
+                    onUpdate(newName)
+                } else {
+                    Toast.makeText(this, "Please enter a valid name", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showDeleteConfirmationDialog(ingredientName: String, onDelete: () -> Unit) {
+        AlertDialog.Builder(this)
+            .setTitle("Delete Ingredient")
+            .setMessage("Are you sure you want to delete '$ingredientName'?")
+            .setPositiveButton("Delete") { _, _ ->
+                onDelete()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun updateIngredientName(oldName: String, newName: String): Boolean {
+        return try {
+            // Get the ingredient data
+            val ingredients = databaseHelper.getUniqueIngredientsWithHighConfidence(0.0f)
+            val targetIngredient = ingredients.find { it.name == oldName }
+
+            if (targetIngredient != null) {
+                // Create a new detection with the new name
+                val updatedBoundingBox = targetIngredient.detectionData.boundingBox.copy(clsName = newName)
+                val updatedDetectionData = targetIngredient.detectionData.copy(
+                    boundingBox = updatedBoundingBox,
+                    timestamp = System.currentTimeMillis()
+                )
+
+                // Save the new detection data
+                databaseHelper.saveDetectionData(updatedDetectionData)
+
+                // Delete the old ingredient
+                deleteIngredient(oldName)
+
+                true
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating ingredient name: ${e.message}")
+            false
+        }
+    }
+
+    private fun deleteIngredient(ingredientName: String): Boolean {
+        return try {
+            // Get all current ingredients except the one we want to delete
+            val allIngredients = databaseHelper.getUniqueIngredientsWithHighConfidence(0.0f)
+            val ingredientsToKeep = allIngredients.filter { it.name != ingredientName }
+
+            if (allIngredients.size == ingredientsToKeep.size) {
+                // Ingredient not found
+                return false
+            }
+
+            // Clear all data
+            databaseHelper.clearAllDetections()
+
+            // Re-add the ingredients we want to keep
+            ingredientsToKeep.forEach { ingredient ->
+                databaseHelper.saveDetectionData(ingredient.detectionData)
+            }
+
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error deleting ingredient: ${e.message}")
+            false
+        }
+    }
+
     private fun showRecipesDialog(detectedIngredients: List<String>) {
-        // Create and show the dialog
+        // ENHANCED: Use database for recipe matching
+        val recipeMatches = databaseHelper.findRecipesWithIngredients(detectedIngredients)
+
+        if (recipeMatches.isEmpty()) {
+            Toast.makeText(this, "No recipes found with these ingredients", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // ADDED: Save recipe matches to database
+        databaseHelper.saveRecipeMatches(currentSessionId, recipeMatches)
+
+        // Create and show the dialog (keeping your original dialog)
         val dialog = Dialog(this, android.R.style.Theme_Translucent_NoTitleBar)
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
         dialog.setContentView(R.layout.dialog_recipes)
@@ -202,18 +452,9 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
 
         // Show which ingredients we're using
         val ingredientsText = dialog.findViewById<TextView>(R.id.recipeIngredientsUsed)
-        ingredientsText.text = "Ingredients used: ${detectedIngredients.joinToString(", ")}"
+        ingredientsText?.text = "Ingredients used: ${detectedIngredients.joinToString(", ")}"
 
-        // Find recipes that match our ingredients
-        val recipeMatches = recipeManager.findRecipesWithIngredients(detectedIngredients)
-
-        if (recipeMatches.isEmpty()) {
-            Toast.makeText(this, "No recipes found with these ingredients", Toast.LENGTH_SHORT).show()
-            dialog.dismiss()
-            return
-        }
-
-        // Set up RecyclerView
+        // Set up RecyclerView (keeping your original setup)
         val recyclerView = dialog.findViewById<RecyclerView>(R.id.recipesRecyclerView)
         recyclerView.layoutManager = LinearLayoutManager(this)
 
@@ -230,7 +471,7 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
         Log.d(TAG, "Found ${recipeMatches.size} recipes matching ingredients: ${detectedIngredients.joinToString(", ")}")
     }
 
-    // Add this method to show recipe details
+    // Add this method to show recipe details (keeping your original approach)
     private fun showRecipeDetailDialog(recipe: RecipeData) {
         // Create and show the dialog
         val dialog = Dialog(this, android.R.style.Theme_Translucent_NoTitleBar)
@@ -264,10 +505,11 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
         dialog.show()
     }
 
+    // Keep all your original camera methods exactly the same
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
         cameraProviderFuture.addListener({
-            cameraProvider  = cameraProviderFuture.get()
+            cameraProvider = cameraProviderFuture.get()
             bindCameraUseCases()
         }, ContextCompat.getMainExecutor(this))
     }
@@ -282,7 +524,7 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
             .requireLensFacing(CameraSelector.LENS_FACING_BACK)
             .build()
 
-        preview =  Preview.Builder()
+        preview = Preview.Builder()
             .setTargetAspectRatio(AspectRatio.RATIO_4_3)
             .setTargetRotation(rotation)
             .build()
@@ -336,7 +578,7 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
             )
 
             preview?.setSurfaceProvider(binding.viewFinder.surfaceProvider)
-        } catch(exc: Exception) {
+        } catch (exc: Exception) {
             Log.e(TAG, "Use case binding failed", exc)
         }
     }
@@ -346,19 +588,23 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
     }
 
     private val requestPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()) {
-        if (it[Manifest.permission.CAMERA] == true) { startCamera() }
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        if (it[Manifest.permission.CAMERA] == true) {
+            startCamera()
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        endCurrentSession() // ADDED
         detector.clear()
         cameraExecutor.shutdown()
     }
 
     override fun onResume() {
         super.onResume()
-        if (allPermissionsGranted()){
+        if (allPermissionsGranted()) {
             startCamera()
         } else {
             requestPermissionLauncher.launch(REQUIRED_PERMISSIONS)
@@ -368,7 +614,7 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
     companion object {
         private const val TAG = "Camera"
         private const val REQUEST_CODE_PERMISSIONS = 10
-        private val REQUIRED_PERMISSIONS = mutableListOf (
+        private val REQUIRED_PERMISSIONS = mutableListOf(
             Manifest.permission.CAMERA
         ).toTypedArray()
     }
@@ -377,9 +623,8 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
         binding.overlay.invalidate()
     }
 
-
     override fun onDetect(boundingBoxes: List<BoundingBox>, inferenceTime: Long, frameWidth: Int, frameHeight: Int) {
-        // Store detection data
+        // Store detection data (ENHANCED: now saves to database too)
         val currentTime = System.currentTimeMillis()
         boundingBoxes.forEach { box ->
             val detectionData = DetectionData(
@@ -388,7 +633,12 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
                 frameWidth = frameWidth,
                 frameHeight = frameHeight
             )
+
+            // Keep your original memory storage
             detectionStorage.addDetection(detectionData)
+
+            // ADDED: Also save to database
+            databaseHelper.saveDetectionData(detectionData)
         }
 
         runOnUiThread {
@@ -409,5 +659,10 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
             }
         }
     }
-}
 
+    // ADDED: Data class for ingredient data
+    data class IngredientData(
+        var name: String,
+        val detectionData: DetectionData
+    )
+}
