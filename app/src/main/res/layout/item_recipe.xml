@@ -17,7 +17,7 @@
             android:id="@+id/recipeName"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Recipe Name"
+            android:text=""
             android:textSize="18sp"
             android:textColor="#2A5D00"
             android:textStyle="bold" />
@@ -28,7 +28,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:textColor="#000000"
-            android:text="Ingredients match: 75%" />
+            android:text="" />
 
         <TextView
             android:id="@+id/recipePrepTime"
@@ -36,7 +36,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:textColor="#000000"
-            android:text="Prep time: 15 minutes" />
+            android:text="" />
 
     </LinearLayout>
 </androidx.cardview.widget.CardView>

@@ -42,7 +42,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Ingredients:"
+                android:text=""
                 android:textColor="@color/green_dishcovery"
                 android:textSize="18sp"
                 android:textStyle="bold" />
@@ -53,14 +53,14 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:layout_marginBottom="16dp"
-                android:text="- Ingredient 1\n- Ingredient 2\n- Ingredient 3"
+                android:text=""
                 android:textSize="16sp"
                 android:textColor="#000000"/>
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Instructions:"
+                android:text=""
                 android:textSize="18sp"
                 android:textStyle="bold"
                 android:textColor="@color/green_dishcovery"/>
@@ -70,7 +70,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="1. Step one\n2. Step two\n3. Step three"
+                android:text=""
                 android:textSize="16sp"
                 android:textColor="#000000"/>
 
@@ -79,7 +79,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
-                android:text="Preparation time: 15 minutes"
+                android:text=""
                 android:textSize="16sp"
                 android:textStyle="italic"
                 android:textColor="#4A4E48"/>

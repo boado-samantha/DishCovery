@@ -35,7 +35,7 @@
         android:layout_height="wrap_content"
         android:padding="16dp"
         android:textColor="#4A4E48"
-        android:text="Ingredients used: Apple, Banana, Carrot"
+        android:text=""
         android:textSize="16sp" />
 
     <androidx.recyclerview.widget.RecyclerView
