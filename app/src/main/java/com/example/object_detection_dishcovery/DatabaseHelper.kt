@@ -13,7 +13,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
     companion object {
         private const val DATABASE_NAME = "DishcoveryDatabase.db"
-        private const val DATABASE_VERSION = 4 // Increased version for enhanced UI tables
+        private const val DATABASE_VERSION = 5 // Increased version for diabetic recipes
         private const val TAG = "DatabaseHelper"
 
         // Detection Data table (stores BoundingBox data from object detection)
@@ -44,7 +44,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         private const val COLUMN_INGREDIENT_DETECTION_COUNT = "detection_count"
         private const val COLUMN_INGREDIENT_HIGHEST_CONFIDENCE = "highest_confidence"
 
-        // Recipes table (stores recipe data)
+        // Enhanced Recipes table (stores diabetic-friendly recipe data)
         private const val RECIPES_TABLE = "recipes"
         private const val COLUMN_RECIPE_ID = "id"
         private const val COLUMN_RECIPE_NAME = "name"
@@ -53,6 +53,13 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         private const val COLUMN_RECIPE_SERVINGS = "servings"
         private const val COLUMN_RECIPE_DIFFICULTY = "difficulty"
         private const val COLUMN_RECIPE_CREATED_AT = "created_at"
+        private const val COLUMN_RECIPE_IS_DIABETIC_FRIENDLY = "is_diabetic_friendly"
+        private const val COLUMN_RECIPE_GLYCEMIC_INDEX = "glycemic_index"
+        private const val COLUMN_RECIPE_CARBS_PER_SERVING = "carbs_per_serving"
+        private const val COLUMN_RECIPE_FIBER_CONTENT = "fiber_content"
+        private const val COLUMN_RECIPE_RESTRICTIONS = "dietary_restrictions"
+        private const val COLUMN_RECIPE_BENEFITS = "health_benefits"
+        private const val COLUMN_RECIPE_LIMITATIONS = "limitations"
 
         // Recipe Ingredients junction table
         private const val RECIPE_INGREDIENTS_TABLE = "recipe_ingredients"
@@ -157,11 +164,110 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         private const val COLUMN_LAYOUT_PROPERTIES = "properties_json"
     }
 
+    // Data classes for dynamic UI
+    data class UISettingData(
+        val key: String,
+        val value: String,
+        val type: String,
+        val category: String
+    )
+
+    data class NavigationItemData(
+        val title: String,
+        val icon: String,
+        val position: Int,
+        val isActive: Boolean,
+        val actionType: String,
+        val target: String?
+    )
+
+    data class ButtonConfigData(
+        val identifier: String,
+        val title: String,
+        val icon: String,
+        val background: String,
+        val isEnabled: Boolean,
+        val visibility: Int,
+        val action: String,
+        val category: String
+    )
+
+    data class AppTextData(
+        val key: String,
+        val value: String,
+        val screen: String,
+        val element: String
+    )
+
+    data class IconData(
+        val key: String,
+        val resourceName: String,
+        val category: String,
+        val description: String
+    )
+
+    data class ColorData(
+        val key: String,
+        val value: String,
+        val category: String,
+        val description: String
+    )
+
+    data class DrawableData(
+        val key: String,
+        val resourceName: String,
+        val type: String,
+        val category: String
+    )
+
+    data class LayoutElementData(
+        val screen: String,
+        val elementId: String,
+        val elementType: String,
+        val textKey: String?,
+        val iconKey: String?,
+        val colorKey: String?,
+        val drawableKey: String?,
+        val isVisible: Boolean,
+        val properties: String
+    )
+
+    // Enhanced Recipe Data class for diabetic-friendly features
+    data class EnhancedRecipeData(
+        val id: Long,
+        val name: String,
+        val ingredients: List<String>,
+        val instructions: String,
+        val prepTime: Int,
+        val servings: Int,
+        val difficulty: String,
+        val isDiabeticFriendly: Boolean,
+        val glycemicIndex: String,
+        val carbsPerServing: Float,
+        val fiberContent: Float,
+        val restrictions: String,
+        val benefits: String,
+        val limitations: String
+    )
+
+    // Enhanced Recipe Match data class
+    data class EnhancedRecipeMatch(
+        val recipe: EnhancedRecipeData,
+        val matchPercentage: Float,
+        val matchedIngredients: List<String>
+    )
+
+    // Ingredient data class for compatibility - Fixed to match MainActivity usage
+    data class IngredientData(
+        var name: String,
+        val detectionData: DetectionData
+    )
+
     override fun onCreate(db: SQLiteDatabase?) {
         // Create existing tables...
         createDetectionDataTable(db)
         createIngredientsTable(db)
-        createRecipesTable(db)
+        createEnhancedRecipesTable(db)
         createRecipeIngredientsTable(db)
         createScanSessionsTable(db)
         createRecipeMatchesTable(db)
@@ -179,7 +285,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         createLayoutElementsTable(db)
 
         // Insert default data
-        insertDefaultRecipes(db)
+        insertDiabeticFriendlyRecipes(db)
         insertDefaultUISettings(db)
         insertDefaultNavigationItems(db)
         insertDefaultButtonConfigurations(db)
@@ -246,7 +352,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         """.trimIndent())
     }
 
-    private fun createRecipesTable(db: SQLiteDatabase?) {
+    private fun createEnhancedRecipesTable(db: SQLiteDatabase?) {
         db?.execSQL("""
             CREATE TABLE $RECIPES_TABLE (
                 $COLUMN_RECIPE_ID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -255,7 +361,14 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 $COLUMN_RECIPE_PREP_TIME INTEGER NOT NULL,
                 $COLUMN_RECIPE_SERVINGS INTEGER DEFAULT 1,
                 $COLUMN_RECIPE_DIFFICULTY TEXT DEFAULT 'easy',
-                $COLUMN_RECIPE_CREATED_AT INTEGER DEFAULT (strftime('%s','now'))
+                $COLUMN_RECIPE_CREATED_AT INTEGER DEFAULT (strftime('%s','now')),
+                $COLUMN_RECIPE_IS_DIABETIC_FRIENDLY BOOLEAN DEFAULT 1,
+                $COLUMN_RECIPE_GLYCEMIC_INDEX TEXT DEFAULT 'low',
+                $COLUMN_RECIPE_CARBS_PER_SERVING REAL DEFAULT 0,
+                $COLUMN_RECIPE_FIBER_CONTENT REAL DEFAULT 0,
+                $COLUMN_RECIPE_RESTRICTIONS TEXT,
+                $COLUMN_RECIPE_BENEFITS TEXT,
+                $COLUMN_RECIPE_LIMITATIONS TEXT
             )
         """.trimIndent())
     }
@@ -412,74 +525,157 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         """.trimIndent())
     }
 
-    // Data classes for dynamic UI
-    data class UISettingData(
-        val key: String,
-        val value: String,
-        val type: String,
-        val category: String
-    )
+    // Insert diabetic-friendly recipes
+    private fun insertDiabeticFriendlyRecipes(db: SQLiteDatabase?) {
+        val recipes = listOf(
+            // Updated recipes using your detected ingredients
+            Triple(
+                "Simple Scrambled Eggs",
+                "1. Heat a non-stick pan over low heat\n2. Crack eggs into the pan\n3. Gently scramble with a spatula\n4. Season with herbs and pepper\n5. Serve immediately while hot",
+                mapOf(
+                    "isDiabeticFriendly" to true,
+                    "glycemicIndex" to "very low",
+                    "carbsPerServing" to 1.2f,
+                    "fiberContent" to 0.8f,
+                    "restrictions" to "Limit to 2 eggs per serving for cholesterol management",
+                    "benefits" to "High-quality protein; helps maintain stable blood glucose levels",
+                    "limitations" to "High in cholesterol; monitor if you have heart conditions"
+                )
+            ),
 
-    data class NavigationItemData(
-        val title: String,
-        val icon: String,
-        val position: Int,
-        val isActive: Boolean,
-        val actionType: String,
-        val target: String?
-    )
+            Triple(
+                "Fresh Apple Slices",
+                "1. Wash apple thoroughly\n2. Core and slice into wedges\n3. Sprinkle with cinnamon if desired\n4. Serve fresh\n5. Best consumed with protein or nuts",
+                mapOf(
+                    "isDiabeticFriendly" to true,
+                    "glycemicIndex" to "low-medium",
+                    "carbsPerServing" to 15.2f,
+                    "fiberContent" to 4.8f,
+                    "restrictions" to "Limit to 1 small apple per serving; eat with protein to slow absorption",
+                    "benefits" to "High fiber slows sugar absorption; provides antioxidants and vitamins",
+                    "limitations" to "Contains natural fruit sugars; portion control essential"
+                )
+            ),
 
-    data class ButtonConfigData(
-        val identifier: String,
-        val title: String,
-        val icon: String,
-        val background: String,
-        val isEnabled: Boolean,
-        val visibility: Int, // 0 = VISIBLE, 4 = INVISIBLE, 8 = GONE
-        val action: String,
-        val category: String
-    )
+            Triple(
+                "Roasted Carrot Sticks",
+                "1. Preheat oven to 400°F (200°C)\n2. Cut carrots into sticks\n3. Toss with minimal olive oil\n4. Season with herbs\n5. Roast for 20-25 minutes until tender\n6. Serve hot",
+                mapOf(
+                    "isDiabeticFriendly" to true,
+                    "glycemicIndex" to "medium",
+                    "carbsPerServing" to 8.2f,
+                    "fiberContent" to 4.1f,
+                    "restrictions" to "Limit portion to 1/2 cup; monitor blood sugar response",
+                    "benefits" to "High in beta-carotene and fiber; supports eye health",
+                    "limitations" to "Higher in natural sugars than other vegetables"
+                )
+            ),
 
-    data class AppTextData(
-        val key: String,
-        val value: String,
-        val screen: String,
-        val element: String
-    )
+            Triple(
+                "Fresh Tomato Salad",
+                "1. Slice fresh tomatoes\n2. Arrange on plate\n3. Drizzle with minimal olive oil\n4. Season with herbs and pepper\n5. Let flavors meld for 10 minutes\n6. Serve fresh",
+                mapOf(
+                    "isDiabeticFriendly" to true,
+                    "glycemicIndex" to "low",
+                    "carbsPerServing" to 5.8f,
+                    "fiberContent" to 2.4f,
+                    "restrictions" to "Limit olive oil; be mindful of portions for weight management",
+                    "benefits" to "Rich in lycopene and antioxidants; supports heart health",
+                    "limitations" to "Nightshade vegetable may cause inflammation in sensitive individuals"
+                )
+            ),
 
-    data class IconData(
-        val key: String,
-        val resourceName: String,
-        val category: String,
-        val description: String
-    )
+            Triple(
+                "Sliced Banana Bowl",
+                "1. Slice 1/2 ripe banana\n2. Arrange in bowl\n3. Add chopped nuts if available\n4. Sprinkle with cinnamon\n5. Serve immediately",
+                mapOf(
+                    "isDiabeticFriendly" to true,
+                    "glycemicIndex" to "low-medium",
+                    "carbsPerServing" to 13.5f,
+                    "fiberContent" to 1.6f,
+                    "restrictions" to "Use only 1/2 banana per serving; combine with protein or healthy fats",
+                    "benefits" to "Provides potassium and fiber; natural energy source",
+                    "limitations" to "Higher in natural sugars; may cause blood sugar spike if eaten alone"
+                )
+            ),
 
-    data class ColorData(
-        val key: String,
-        val value: String,
-        val category: String,
-        val description: String
-    )
+            Triple(
+                "Simple Avocado Slices",
+                "1. Cut ripe avocado in half\n2. Remove pit carefully\n3. Slice into wedges\n4. Season with lime and pepper\n5. Serve immediately to prevent browning",
+                mapOf(
+                    "isDiabeticFriendly" to true,
+                    "glycemicIndex" to "very low",
+                    "carbsPerServing" to 4.0f,
+                    "fiberContent" to 6.7f,
+                    "restrictions" to "High in calories; limit to 1/4 to 1/2 avocado per serving",
+                    "benefits" to "Rich in healthy monounsaturated fats; helps slow carbohydrate absorption",
+                    "limitations" to "Very high in calories; can contribute to weight gain if overconsumed"
+                )
+            ),
 
-    data class DrawableData(
-        val key: String,
-        val resourceName: String,
-        val type: String,
-        val category: String
-    )
+            Triple(
+                "Steamed Zucchini",
+                "1. Wash and slice zucchini into rounds\n2. Steam for 5-7 minutes until tender\n3. Season with herbs and minimal salt\n4. Drizzle with tiny amount of olive oil\n5. Serve hot",
+                mapOf(
+                    "isDiabeticFriendly" to true,
+                    "glycemicIndex" to "very low",
+                    "carbsPerServing" to 3.9f,
+                    "fiberContent" to 1.2f,
+                    "restrictions" to "Very low restrictions; excellent for diabetic diet",
+                    "benefits" to "Very low in carbohydrates and calories; high water content helps with satiety",
+                    "limitations" to "May cause digestive issues if consumed in very large quantities"
+                )
+            )
+        )
 
-    data class LayoutElementData(
-        val screen: String,
-        val elementId: String,
-        val elementType: String,
-        val textKey: String?,
-        val iconKey: String?,
-        val colorKey: String?,
-        val drawableKey: String?,
-        val isVisible: Boolean,
-        val properties: String
-    )
+        val recipeIngredients = mapOf(
+            "Simple Scrambled Eggs" to listOf("egg"),
+            "Fresh Apple Slices" to listOf("apple"),
+            "Roasted Carrot Sticks" to listOf("carrot"),
+            "Fresh Tomato Salad" to listOf("tomato"),
+            "Sliced Banana Bowl" to listOf("banana"),
+            "Simple Avocado Slices" to listOf("avocado"),
+            "Steamed Zucchini" to listOf("zucchini")
+        )
 
+        recipes.forEach { (name, instructions, properties) ->
+            val values = ContentValues().apply {
+                put(COLUMN_RECIPE_NAME, name)
+                put(COLUMN_RECIPE_INSTRUCTIONS, instructions)
+                put(COLUMN_RECIPE_PREP_TIME, when(name) {
+                    "Simple Scrambled Eggs" -> 8
+                    "Fresh Apple Slices" -> 3
+                    "Roasted Carrot Sticks" -> 30
+                    "Fresh Tomato Salad" -> 10
+                    "Sliced Banana Bowl" -> 2
+                    "Simple Avocado Slices" -> 5
+                    "Steamed Zucchini" -> 12
+                    else -> 10
+                })
+                put(COLUMN_RECIPE_SERVINGS, 1)
+                put(COLUMN_RECIPE_DIFFICULTY, "easy")
+                put(COLUMN_RECIPE_IS_DIABETIC_FRIENDLY, properties["isDiabeticFriendly"] as Boolean)
+                put(COLUMN_RECIPE_GLYCEMIC_INDEX, properties["glycemicIndex"] as String)
+                put(COLUMN_RECIPE_CARBS_PER_SERVING, properties["carbsPerServing"] as Float)
+                put(COLUMN_RECIPE_FIBER_CONTENT, properties["fiberContent"] as Float)
+                put(COLUMN_RECIPE_RESTRICTIONS, properties["restrictions"] as String)
+                put(COLUMN_RECIPE_BENEFITS, properties["benefits"] as String)
+                put(COLUMN_RECIPE_LIMITATIONS, properties["limitations"] as String)
+            }
+            val recipeId = db?.insert(RECIPES_TABLE, null, values)
+
+            // Insert recipe ingredients
+            recipeIngredients[name]?.forEach { ingredient ->
+                val ingredientValues = ContentValues().apply {
+                    put(COLUMN_RI_RECIPE_ID, recipeId)
+                    put(COLUMN_RI_INGREDIENT_NAME, ingredient)
+                    put(COLUMN_RI_QUANTITY, "1")
+                    put(COLUMN_RI_UNIT, "piece")
+                }
+                db?.insert(RECIPE_INGREDIENTS_TABLE, null, ingredientValues)
+            }
+        }
+    }
     // Insert default data methods
     private fun insertDefaultUISettings(db: SQLiteDatabase?) {
         val settings = listOf(
@@ -564,22 +760,26 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
             // Dialog Ingredients Screen
             AppTextData("title_scanned_ingredients", "Scanned Ingredients", "dialog_ingredients", "title"),
             AppTextData("btn_close", "Close", "dialog_ingredients", "button"),
-            AppTextData("btn_recommend_recipes", "Recommend Recipes", "dialog_ingredients", "button"),
+            AppTextData("btn_recommend_recipes", "Recommend Diabetic-Friendly Recipes", "dialog_ingredients", "button"),
 
             // Dialog Recipe Detail Screen
-            AppTextData("title_recipe_name", "Recipe Name", "dialog_recipe_detail", "title"),
-            AppTextData("label_ingredients", "Ingredients:", "dialog_recipe_detail", "label"),
-            AppTextData("label_instructions", "Instructions:", "dialog_recipe_detail", "label"),
+            AppTextData("title_recipe_name", "Recipe Details", "dialog_recipe_detail", "title"),
+            AppTextData("label_ingredients", "INGREDIENTS:", "dialog_recipe_detail", "label"),
+            AppTextData("label_instructions", "COOKING INSTRUCTIONS", "dialog_recipe_detail", "label"),
             AppTextData("label_prep_time", "Preparation time: %d minutes", "dialog_recipe_detail", "label"),
-            AppTextData("sample_ingredients", "- Ingredient 1\n- Ingredient 2\n- Ingredient 3", "dialog_recipe_detail", "content"),
-            AppTextData("sample_instructions", "1. Step one\n2. Step two\n3. Step three", "dialog_recipe_detail", "content"),
+            AppTextData("label_glycemic_index", "Glycemic Index: %s", "dialog_recipe_detail", "label"),
+            AppTextData("label_carbs_per_serving", "Carbs per serving: %.1f g", "dialog_recipe_detail", "label"),
+            AppTextData("label_fiber_content", "Fiber: %.1f g", "dialog_recipe_detail", "label"),
+            AppTextData("label_restrictions", "DIETARY RESTRICTIONS", "dialog_recipe_detail", "label"),
+            AppTextData("label_benefits", "HEALTH BENEFITS", "dialog_recipe_detail", "label"),
+            AppTextData("label_limitations", "LIMITATIONS & PRECAUTIONS", "dialog_recipe_detail", "label"),
 
             // Dialog Recipes Screen
-            AppTextData("title_recipe_suggestions", "Recipe Suggestions", "dialog_recipes", "title"),
+            AppTextData("title_recipe_suggestions", "Diabetic-Friendly Recipe Suggestions", "dialog_recipes", "title"),
             AppTextData("label_ingredients_used", "Ingredients used: %s", "dialog_recipes", "label"),
 
             // Main Activity
-            AppTextData("app_title", "Ingredient Scanner", "main_activity", "title"),
+            AppTextData("app_title", "Diabetic Ingredient Scanner", "main_activity", "title"),
             AppTextData("detection_count_label", "Detections: %d", "main_activity", "label"),
             AppTextData("inference_time_label", "%dms", "main_activity", "label"),
 
@@ -591,6 +791,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
             // Item Recipe
             AppTextData("label_recipe_match", "Ingredients match: %.0f%%", "item_recipe", "label"),
             AppTextData("label_prep_time_item", "Prep time: %d minutes", "item_recipe", "label"),
+            AppTextData("label_diabetic_friendly", "Diabetic-Friendly: %s", "item_recipe", "label"),
 
             // Common
             AppTextData("sample_recipe_name", "Recipe Name", "all", "placeholder"),
@@ -744,52 +945,9 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         }
     }
 
-    private fun insertDefaultRecipes(db: SQLiteDatabase?) {
-        val recipes = listOf(
-            Triple("Banana Apple Smoothie", "1. Peel and chop the apple and banana\n2. Blend with ice and a splash of water\n3. Serve cold", 5),
-            Triple("Carrot Apple Salad", "1. Grate the apple and carrot\n2. Mix together in a bowl\n3. Add a drizzle of honey (optional)\n4. Serve fresh", 10),
-            Triple("Scrambled Eggs with Tomato", "1. Beat the eggs in a bowl\n2. Dice the tomato\n3. Heat a pan and cook the eggs\n4. Add tomatoes when eggs are halfway done\n5. Season with salt and pepper", 8),
-            Triple("Carrot Tomato Soup", "1. Chop carrots and tomatoes\n2. Boil in water until soft\n3. Blend until smooth\n4. Season with salt and herbs", 20),
-            Triple("Banana Egg Pancakes", "1. Mash the banana\n2. Beat the eggs\n3. Mix banana and eggs together\n4. Pour small amounts into a hot pan\n5. Flip when bubbles appear\n6. Serve warm", 15),
-            Triple("Veggie Breakfast Scramble", "1. Dice tomato and grate carrot\n2. Beat eggs in a bowl\n3. Cook vegetables in a pan until soft\n4. Add eggs and scramble together\n5. Season to taste", 12),
-            Triple("Fruity Carrot Smoothie", "1. Peel and chop apple and banana\n2. Grate or chop carrot\n3. Blend all ingredients with ice\n4. Add a little water if needed\n5. Serve immediately", 7)
-        )
+    // CORE DATABASE METHODS
 
-        val recipeIngredients = mapOf(
-            "Banana Apple Smoothie" to listOf("Apple", "Banana"),
-            "Carrot Apple Salad" to listOf("Apple", "Carrot"),
-            "Scrambled Eggs with Tomato" to listOf("Egg", "Tomato"),
-            "Carrot Tomato Soup" to listOf("Carrot", "Tomato"),
-            "Banana Egg Pancakes" to listOf("Banana", "Egg"),
-            "Veggie Breakfast Scramble" to listOf("Egg", "Tomato", "Carrot"),
-            "Fruity Carrot Smoothie" to listOf("Apple", "Banana", "Carrot")
-        )
-
-        recipes.forEach { (name, instructions, prepTime) ->
-            val values = ContentValues().apply {
-                put(COLUMN_RECIPE_NAME, name)
-                put(COLUMN_RECIPE_INSTRUCTIONS, instructions)
-                put(COLUMN_RECIPE_PREP_TIME, prepTime)
-                put(COLUMN_RECIPE_SERVINGS, 2)
-                put(COLUMN_RECIPE_DIFFICULTY, "easy")
-            }
-            val recipeId = db?.insert(RECIPES_TABLE, null, values)
-
-            // Insert recipe ingredients
-            recipeIngredients[name]?.forEach { ingredient ->
-                val ingredientValues = ContentValues().apply {
-                    put(COLUMN_RI_RECIPE_ID, recipeId)
-                    put(COLUMN_RI_INGREDIENT_NAME, ingredient)
-                    put(COLUMN_RI_QUANTITY, "1")
-                    put(COLUMN_RI_UNIT, "piece")
-                }
-                db?.insert(RECIPE_INGREDIENTS_TABLE, null, ingredientValues)
-            }
-        }
-    }
-
-    // EXISTING METHODS (Detection Data, Ingredients, Recipes, etc.) - Enhanced with Dynamic UI
-
+    // Detection Data Methods
     fun saveDetectionData(detectionData: DetectionData): Long {
         val values = ContentValues().apply {
             put(COLUMN_DETECTION_CLASS_NAME, detectionData.boundingBox.clsName)
@@ -809,10 +967,46 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         }
 
         val result = writableDatabase.insert(DETECTIONS_TABLE, null, values)
-
-        // Also update or insert ingredient data
         updateIngredientData(detectionData.boundingBox.clsName, detectionData.boundingBox.cnf, detectionData.timestamp)
+        return result
+    }
 
+    // Alternative method for MainActivity compatibility
+    fun saveDetectionFromBoundingBox(
+        className: String,
+        confidence: Float,
+        x1: Float,
+        y1: Float,
+        x2: Float,
+        y2: Float,
+        cx: Float,
+        cy: Float,
+        width: Float,
+        height: Float,
+        cls: Int,
+        timestamp: Long,
+        frameWidth: Int,
+        frameHeight: Int
+    ): Long {
+        val values = ContentValues().apply {
+            put(COLUMN_DETECTION_CLASS_NAME, className)
+            put(COLUMN_DETECTION_CONFIDENCE, confidence)
+            put(COLUMN_DETECTION_X1, x1)
+            put(COLUMN_DETECTION_Y1, y1)
+            put(COLUMN_DETECTION_X2, x2)
+            put(COLUMN_DETECTION_Y2, y2)
+            put(COLUMN_DETECTION_CX, cx)
+            put(COLUMN_DETECTION_CY, cy)
+            put(COLUMN_DETECTION_WIDTH, width)
+            put(COLUMN_DETECTION_HEIGHT, height)
+            put(COLUMN_DETECTION_CLS, cls)
+            put(COLUMN_DETECTION_TIMESTAMP, timestamp)
+            put(COLUMN_DETECTION_FRAME_WIDTH, frameWidth)
+            put(COLUMN_DETECTION_FRAME_HEIGHT, frameHeight)
+        }
+
+        val result = writableDatabase.insert(DETECTIONS_TABLE, null, values)
+        updateIngredientData(className, confidence, timestamp)
         return result
     }
 
@@ -862,8 +1056,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         }
     }
 
-    // INGREDIENT METHODS
-
+    // Ingredient Methods
     private fun updateIngredientData(ingredientName: String, confidence: Float, timestamp: Long) {
         val cursor = readableDatabase.query(
             INGREDIENTS_TABLE,
@@ -875,7 +1068,6 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
         cursor.use {
             if (it.moveToFirst()) {
-                // Update existing ingredient
                 val currentCount = it.getInt(it.getColumnIndexOrThrow(COLUMN_INGREDIENT_DETECTION_COUNT))
                 val currentHighest = it.getFloat(it.getColumnIndexOrThrow(COLUMN_INGREDIENT_HIGHEST_CONFIDENCE))
 
@@ -890,7 +1082,6 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                     "$COLUMN_INGREDIENT_NAME = ?", arrayOf(ingredientName)
                 )
             } else {
-                // Insert new ingredient
                 val values = ContentValues().apply {
                     put(COLUMN_INGREDIENT_NAME, ingredientName)
                     put(COLUMN_INGREDIENT_CATEGORY, getIngredientCategory(ingredientName))
@@ -917,7 +1108,6 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
         cursor.use {
             while (it.moveToNext()) {
-                // Create a dummy DetectionData for compatibility
                 val dummyBoundingBox = BoundingBox(
                     x1 = 0f, y1 = 0f, x2 = 1f, y2 = 1f,
                     cx = 0.5f, cy = 0.5f, w = 1f, h = 1f,
@@ -943,19 +1133,47 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         return ingredients
     }
 
+    // Method to update ingredient name
+    fun updateIngredientName(oldName: String, newName: String): Boolean {
+        val values = ContentValues().apply {
+            put(COLUMN_INGREDIENT_NAME, newName)
+        }
+
+        val rowsAffected = writableDatabase.update(
+            INGREDIENTS_TABLE,
+            values,
+            "$COLUMN_INGREDIENT_NAME = ?",
+            arrayOf(oldName)
+        )
+
+        Log.d(TAG, "Updated ingredient '$oldName' to '$newName', rows affected: $rowsAffected")
+        return rowsAffected > 0
+    }
+
+    // Method to delete ingredient
+    fun deleteIngredient(ingredientName: String): Boolean {
+        val rowsAffected = writableDatabase.delete(
+            INGREDIENTS_TABLE,
+            "$COLUMN_INGREDIENT_NAME = ?",
+            arrayOf(ingredientName)
+        )
+
+        Log.d(TAG, "Deleted ingredient '$ingredientName', rows affected: $rowsAffected")
+        return rowsAffected > 0
+    }
+
     private fun getIngredientCategory(ingredientName: String): String {
         return when (ingredientName.lowercase()) {
             "apple", "banana" -> "fruit"
-            "carrot", "tomato" -> "vegetable"
-            "egg" -> "protein"
+            "carrot", "tomato", "spinach", "lettuce" -> "vegetable"
+            "egg", "chicken" -> "protein"
             else -> "other"
         }
     }
 
-    // RECIPE METHODS
-
-    fun getAllRecipes(): List<RecipeData> {
-        val recipes = mutableListOf<RecipeData>()
+    // Recipe Methods
+    fun getAllRecipes(): List<EnhancedRecipeData> {
+        val recipes = mutableListOf<EnhancedRecipeData>()
         val cursor = readableDatabase.rawQuery("""
             SELECT * FROM $RECIPES_TABLE ORDER BY $COLUMN_RECIPE_NAME
         """.trimIndent(), null)
@@ -965,11 +1183,21 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 val recipeId = it.getLong(it.getColumnIndexOrThrow(COLUMN_RECIPE_ID))
                 val ingredients = getRecipeIngredients(recipeId)
 
-                val recipe = RecipeData(
+                val recipe = EnhancedRecipeData(
+                    id = recipeId,
                     name = it.getString(it.getColumnIndexOrThrow(COLUMN_RECIPE_NAME)),
                     ingredients = ingredients,
                     instructions = it.getString(it.getColumnIndexOrThrow(COLUMN_RECIPE_INSTRUCTIONS)),
-                    prepTime = it.getInt(it.getColumnIndexOrThrow(COLUMN_RECIPE_PREP_TIME))
+                    prepTime = it.getInt(it.getColumnIndexOrThrow(COLUMN_RECIPE_PREP_TIME)),
+                    servings = it.getInt(it.getColumnIndexOrThrow(COLUMN_RECIPE_SERVINGS)),
+                    difficulty = it.getString(it.getColumnIndexOrThrow(COLUMN_RECIPE_DIFFICULTY)),
+                    isDiabeticFriendly = it.getInt(it.getColumnIndexOrThrow(COLUMN_RECIPE_IS_DIABETIC_FRIENDLY)) == 1,
+                    glycemicIndex = it.getString(it.getColumnIndexOrThrow(COLUMN_RECIPE_GLYCEMIC_INDEX)),
+                    carbsPerServing = it.getFloat(it.getColumnIndexOrThrow(COLUMN_RECIPE_CARBS_PER_SERVING)),
+                    fiberContent = it.getFloat(it.getColumnIndexOrThrow(COLUMN_RECIPE_FIBER_CONTENT)),
+                    restrictions = it.getString(it.getColumnIndexOrThrow(COLUMN_RECIPE_RESTRICTIONS)) ?: "",
+                    benefits = it.getString(it.getColumnIndexOrThrow(COLUMN_RECIPE_BENEFITS)) ?: "",
+                    limitations = it.getString(it.getColumnIndexOrThrow(COLUMN_RECIPE_LIMITATIONS)) ?: ""
                 )
                 recipes.add(recipe)
             }
@@ -995,19 +1223,21 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         return ingredients
     }
 
-    fun findRecipesWithIngredients(detectedIngredients: List<String>): List<RecipeMatch> {
-        val recipeMatches = mutableListOf<RecipeMatch>()
+    fun findRecipesWithIngredients(detectedIngredients: List<String>): List<EnhancedRecipeMatch> {
+        val recipeMatches = mutableListOf<EnhancedRecipeMatch>()
         val allRecipes = getAllRecipes()
 
         for (recipe in allRecipes) {
             val matchedIngredients = recipe.ingredients.filter { ingredient ->
-                detectedIngredients.contains(ingredient)
+                detectedIngredients.any { detected ->
+                    detected.equals(ingredient, ignoreCase = true)
+                }
             }
 
             if (matchedIngredients.isNotEmpty()) {
                 val matchPercentage = matchedIngredients.size.toFloat() / recipe.ingredients.size
 
-                val recipeMatch = RecipeMatch(
+                val recipeMatch = EnhancedRecipeMatch(
                     recipe = recipe,
                     matchPercentage = matchPercentage,
                     matchedIngredients = matchedIngredients
@@ -1019,8 +1249,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         return recipeMatches.sortedByDescending { it.matchPercentage }
     }
 
-    // SCAN SESSION METHODS
-
+    // Session Methods
     fun startScanSession(): Long {
         val values = ContentValues().apply {
             put(COLUMN_SESSION_START_TIME, System.currentTimeMillis())
@@ -1044,11 +1273,11 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         )
     }
 
-    fun saveRecipeMatches(sessionId: Long, recipeMatches: List<RecipeMatch>) {
+    fun saveRecipeMatches(sessionId: Long, recipeMatches: List<EnhancedRecipeMatch>) {
         recipeMatches.forEach { match ->
             val values = ContentValues().apply {
                 put(COLUMN_MATCH_SESSION_ID, sessionId)
-                put(COLUMN_MATCH_RECIPE_ID, getRecipeIdByName(match.recipe.name))
+                put(COLUMN_MATCH_RECIPE_ID, match.recipe.id)
                 put(COLUMN_MATCH_PERCENTAGE, match.matchPercentage)
                 put(COLUMN_MATCH_MATCHED_INGREDIENTS, match.matchedIngredients.joinToString(","))
             }
@@ -1056,24 +1285,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         }
     }
 
-    private fun getRecipeIdByName(recipeName: String): Long {
-        val cursor = readableDatabase.query(
-            RECIPES_TABLE,
-            arrayOf(COLUMN_RECIPE_ID),
-            "$COLUMN_RECIPE_NAME = ?",
-            arrayOf(recipeName),
-            null, null, null
-        )
-
-        cursor.use {
-            return if (it.moveToFirst()) {
-                it.getLong(it.getColumnIndexOrThrow(COLUMN_RECIPE_ID))
-            } else -1
-        }
-    }
-
-    // EXISTING UI METHODS (Enhanced)
-
+    // UI Settings Methods
     fun getUISetting(key: String): String? {
         val cursor = readableDatabase.query(
             UI_SETTINGS_TABLE,
@@ -1103,67 +1315,6 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         return rowsAffected > 0
     }
 
-    fun getNavigationItems(): List<NavigationItemData> {
-        val items = mutableListOf<NavigationItemData>()
-        val cursor = readableDatabase.query(
-            NAV_ITEMS_TABLE, null,
-            "$COLUMN_NAV_IS_ACTIVE = ?", arrayOf("1"),
-            null, null, "$COLUMN_NAV_POSITION ASC"
-        )
-
-        cursor.use {
-            while (it.moveToNext()) {
-                val item = NavigationItemData(
-                    title = it.getString(it.getColumnIndexOrThrow(COLUMN_NAV_TITLE)),
-                    icon = it.getString(it.getColumnIndexOrThrow(COLUMN_NAV_ICON)),
-                    position = it.getInt(it.getColumnIndexOrThrow(COLUMN_NAV_POSITION)),
-                    isActive = it.getInt(it.getColumnIndexOrThrow(COLUMN_NAV_IS_ACTIVE)) == 1,
-                    actionType = it.getString(it.getColumnIndexOrThrow(COLUMN_NAV_ACTION_TYPE)),
-                    target = it.getString(it.getColumnIndexOrThrow(COLUMN_NAV_TARGET))
-                )
-                items.add(item)
-            }
-        }
-        return items
-    }
-
-    fun getButtonConfig(identifier: String): ButtonConfigData? {
-        val cursor = readableDatabase.query(
-            BUTTON_CONFIGS_TABLE, null,
-            "$COLUMN_BTN_IDENTIFIER = ?", arrayOf(identifier),
-            null, null, null
-        )
-
-        cursor.use {
-            return if (it.moveToFirst()) {
-                ButtonConfigData(
-                    identifier = it.getString(it.getColumnIndexOrThrow(COLUMN_BTN_IDENTIFIER)),
-                    title = it.getString(it.getColumnIndexOrThrow(COLUMN_BTN_TITLE)) ?: "",
-                    icon = it.getString(it.getColumnIndexOrThrow(COLUMN_BTN_ICON)) ?: "",
-                    background = it.getString(it.getColumnIndexOrThrow(COLUMN_BTN_BACKGROUND)) ?: "",
-                    isEnabled = it.getInt(it.getColumnIndexOrThrow(COLUMN_BTN_IS_ENABLED)) == 1,
-                    visibility = it.getInt(it.getColumnIndexOrThrow(COLUMN_BTN_VISIBILITY)),
-                    action = it.getString(it.getColumnIndexOrThrow(COLUMN_BTN_ACTION)) ?: "",
-                    category = it.getString(it.getColumnIndexOrThrow(COLUMN_BTN_CATEGORY)) ?: ""
-                )
-            } else null
-        }
-    }
-
-    fun updateButtonConfig(identifier: String, isEnabled: Boolean? = null, visibility: Int? = null): Boolean {
-        val values = ContentValues()
-        isEnabled?.let { values.put(COLUMN_BTN_IS_ENABLED, it) }
-        visibility?.let { values.put(COLUMN_BTN_VISIBILITY, it) }
-
-        if (values.size() == 0) return false
-
-        val rowsAffected = writableDatabase.update(
-            BUTTON_CONFIGS_TABLE, values,
-            "$COLUMN_BTN_IDENTIFIER = ?", arrayOf(identifier)
-        )
-        return rowsAffected > 0
-    }
-
     fun getAppText(key: String, screen: String, language: String = "en"): String? {
         val cursor = readableDatabase.query(
             APP_TEXTS_TABLE,
@@ -1177,7 +1328,6 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
             return if (it.moveToFirst()) {
                 it.getString(it.getColumnIndexOrThrow(COLUMN_TEXT_VALUE))
             } else {
-                // Fallback to 'all' screen if specific screen not found
                 getAppTextFallback(key, language)
             }
         }
@@ -1199,195 +1349,6 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         }
     }
 
-    fun updateAppText(key: String, screen: String, newValue: String, language: String = "en"): Boolean {
-        val values = ContentValues().apply {
-            put(COLUMN_TEXT_VALUE, newValue)
-        }
-
-        val rowsAffected = writableDatabase.update(
-            APP_TEXTS_TABLE, values,
-            "$COLUMN_TEXT_KEY = ? AND $COLUMN_TEXT_SCREEN = ? AND $COLUMN_TEXT_LANGUAGE = ?",
-            arrayOf(key, screen, language)
-        )
-        return rowsAffected > 0
-    }
-
-    fun getAllAppTextsForScreen(screen: String, language: String = "en"): Map<String, String> {
-        val texts = mutableMapOf<String, String>()
-        val cursor = readableDatabase.query(
-            APP_TEXTS_TABLE,
-            arrayOf(COLUMN_TEXT_KEY, COLUMN_TEXT_VALUE),
-            "$COLUMN_TEXT_SCREEN = ? AND $COLUMN_TEXT_LANGUAGE = ?",
-            arrayOf(screen, language),
-            null, null, null
-        )
-
-        cursor.use {
-            while (it.moveToNext()) {
-                texts[it.getString(it.getColumnIndexOrThrow(COLUMN_TEXT_KEY))] =
-                    it.getString(it.getColumnIndexOrThrow(COLUMN_TEXT_VALUE))
-            }
-        }
-        return texts
-    }
-
-    fun getButtonsByCategory(category: String): List<ButtonConfigData> {
-        val buttons = mutableListOf<ButtonConfigData>()
-        val cursor = readableDatabase.query(
-            BUTTON_CONFIGS_TABLE, null,
-            "$COLUMN_BTN_CATEGORY = ?", arrayOf(category),
-            null, null, null
-        )
-
-        cursor.use {
-            while (it.moveToNext()) {
-                val button = ButtonConfigData(
-                    identifier = it.getString(it.getColumnIndexOrThrow(COLUMN_BTN_IDENTIFIER)),
-                    title = it.getString(it.getColumnIndexOrThrow(COLUMN_BTN_TITLE)) ?: "",
-                    icon = it.getString(it.getColumnIndexOrThrow(COLUMN_BTN_ICON)) ?: "",
-                    background = it.getString(it.getColumnIndexOrThrow(COLUMN_BTN_BACKGROUND)) ?: "",
-                    isEnabled = it.getInt(it.getColumnIndexOrThrow(COLUMN_BTN_IS_ENABLED)) == 1,
-                    visibility = it.getInt(it.getColumnIndexOrThrow(COLUMN_BTN_VISIBILITY)),
-                    action = it.getString(it.getColumnIndexOrThrow(COLUMN_BTN_ACTION)) ?: "",
-                    category = it.getString(it.getColumnIndexOrThrow(COLUMN_BTN_CATEGORY)) ?: ""
-                )
-                buttons.add(button)
-            }
-        }
-        return buttons
-    }
-
-    // NEW RESOURCE MANAGEMENT METHODS
-
-    fun getIcon(key: String): IconData? {
-        val cursor = readableDatabase.query(
-            ICONS_TABLE, null,
-            "$COLUMN_ICON_KEY = ?", arrayOf(key),
-            null, null, null
-        )
-
-        cursor.use {
-            return if (it.moveToFirst()) {
-                IconData(
-                    key = it.getString(it.getColumnIndexOrThrow(COLUMN_ICON_KEY)),
-                    resourceName = it.getString(it.getColumnIndexOrThrow(COLUMN_ICON_RESOURCE_NAME)),
-                    category = it.getString(it.getColumnIndexOrThrow(COLUMN_ICON_CATEGORY)) ?: "",
-                    description = it.getString(it.getColumnIndexOrThrow(COLUMN_ICON_DESCRIPTION)) ?: ""
-                )
-            } else null
-        }
-    }
-
-    fun getColor(key: String): ColorData? {
-        val cursor = readableDatabase.query(
-            COLORS_TABLE, null,
-            "$COLUMN_COLOR_KEY = ?", arrayOf(key),
-            null, null, null
-        )
-
-        cursor.use {
-            return if (it.moveToFirst()) {
-                ColorData(
-                    key = it.getString(it.getColumnIndexOrThrow(COLUMN_COLOR_KEY)),
-                    value = it.getString(it.getColumnIndexOrThrow(COLUMN_COLOR_VALUE)),
-                    category = it.getString(it.getColumnIndexOrThrow(COLUMN_COLOR_CATEGORY)) ?: "",
-                    description = it.getString(it.getColumnIndexOrThrow(COLUMN_COLOR_DESCRIPTION)) ?: ""
-                )
-            } else null
-        }
-    }
-
-    fun getDrawable(key: String): DrawableData? {
-        val cursor = readableDatabase.query(
-            DRAWABLES_TABLE, null,
-            "$COLUMN_DRAWABLE_KEY = ?", arrayOf(key),
-            null, null, null
-        )
-
-        cursor.use {
-            return if (it.moveToFirst()) {
-                DrawableData(
-                    key = it.getString(it.getColumnIndexOrThrow(COLUMN_DRAWABLE_KEY)),
-                    resourceName = it.getString(it.getColumnIndexOrThrow(COLUMN_DRAWABLE_RESOURCE_NAME)),
-                    type = it.getString(it.getColumnIndexOrThrow(COLUMN_DRAWABLE_TYPE)) ?: "",
-                    category = it.getString(it.getColumnIndexOrThrow(COLUMN_DRAWABLE_CATEGORY)) ?: ""
-                )
-            } else null
-        }
-    }
-
-    fun getLayoutElementsForScreen(screen: String): List<LayoutElementData> {
-        val elements = mutableListOf<LayoutElementData>()
-        val cursor = readableDatabase.query(
-            LAYOUT_ELEMENTS_TABLE, null,
-            "$COLUMN_LAYOUT_SCREEN = ? AND $COLUMN_LAYOUT_IS_VISIBLE = ?",
-            arrayOf(screen, "1"),
-            null, null, null
-        )
-
-        cursor.use {
-            while (it.moveToNext()) {
-                val element = LayoutElementData(
-                    screen = it.getString(it.getColumnIndexOrThrow(COLUMN_LAYOUT_SCREEN)),
-                    elementId = it.getString(it.getColumnIndexOrThrow(COLUMN_LAYOUT_ELEMENT_ID)),
-                    elementType = it.getString(it.getColumnIndexOrThrow(COLUMN_LAYOUT_ELEMENT_TYPE)),
-                    textKey = it.getString(it.getColumnIndexOrThrow(COLUMN_LAYOUT_TEXT_KEY)),
-                    iconKey = it.getString(it.getColumnIndexOrThrow(COLUMN_LAYOUT_ICON_KEY)),
-                    colorKey = it.getString(it.getColumnIndexOrThrow(COLUMN_LAYOUT_COLOR_KEY)),
-                    drawableKey = it.getString(it.getColumnIndexOrThrow(COLUMN_LAYOUT_DRAWABLE_KEY)),
-                    isVisible = it.getInt(it.getColumnIndexOrThrow(COLUMN_LAYOUT_IS_VISIBLE)) == 1,
-                    properties = it.getString(it.getColumnIndexOrThrow(COLUMN_LAYOUT_PROPERTIES)) ?: ""
-                )
-                elements.add(element)
-            }
-        }
-        return elements
-    }
-
-    fun updateLayoutElementVisibility(screen: String, elementId: String, isVisible: Boolean): Boolean {
-        val values = ContentValues().apply {
-            put(COLUMN_LAYOUT_IS_VISIBLE, isVisible)
-        }
-
-        val rowsAffected = writableDatabase.update(
-            LAYOUT_ELEMENTS_TABLE, values,
-            "$COLUMN_LAYOUT_SCREEN = ? AND $COLUMN_LAYOUT_ELEMENT_ID = ?",
-            arrayOf(screen, elementId)
-        )
-        return rowsAffected > 0
-    }
-
-    // Helper methods for UI color management
-    fun getUIColors(): Map<String, String> {
-        val colors = mutableMapOf<String, String>()
-        val cursor = readableDatabase.query(
-            UI_SETTINGS_TABLE,
-            arrayOf(COLUMN_UI_KEY, COLUMN_UI_VALUE),
-            "$COLUMN_UI_TYPE = ? AND $COLUMN_UI_CATEGORY = ?",
-            arrayOf("color", "theme"),
-            null, null, null
-        )
-
-        cursor.use {
-            while (it.moveToNext()) {
-                colors[it.getString(it.getColumnIndexOrThrow(COLUMN_UI_KEY))] =
-                    it.getString(it.getColumnIndexOrThrow(COLUMN_UI_VALUE))
-            }
-        }
-        return colors
-    }
-
-    fun getUIBooleanSetting(key: String, defaultValue: Boolean = false): Boolean {
-        val value = getUISetting(key)
-        return value?.toBoolean() ?: defaultValue
-    }
-
-    fun getUIIntegerSetting(key: String, defaultValue: Int = 0): Int {
-        val value = getUISetting(key)
-        return value?.toIntOrNull() ?: defaultValue
-    }
-
-    // Method to get formatted text with parameters
     fun getFormattedAppText(key: String, screen: String, vararg params: Any): String {
         val template = getAppText(key, screen) ?: return key
         return try {
@@ -1397,140 +1358,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         }
     }
 
-    // Method to add new button configuration
-    fun addButtonConfig(buttonConfig: ButtonConfigData): Long {
-        val values = ContentValues().apply {
-            put(COLUMN_BTN_IDENTIFIER, buttonConfig.identifier)
-            put(COLUMN_BTN_TITLE, buttonConfig.title)
-            put(COLUMN_BTN_ICON, buttonConfig.icon)
-            put(COLUMN_BTN_BACKGROUND, buttonConfig.background)
-            put(COLUMN_BTN_IS_ENABLED, buttonConfig.isEnabled)
-            put(COLUMN_BTN_VISIBILITY, buttonConfig.visibility)
-            put(COLUMN_BTN_ACTION, buttonConfig.action)
-            put(COLUMN_BTN_CATEGORY, buttonConfig.category)
-        }
-        return writableDatabase.insert(BUTTON_CONFIGS_TABLE, null, values)
-    }
-
-    // Method to add new navigation item
-    fun addNavigationItem(navItem: NavigationItemData): Long {
-        val values = ContentValues().apply {
-            put(COLUMN_NAV_TITLE, navItem.title)
-            put(COLUMN_NAV_ICON, navItem.icon)
-            put(COLUMN_NAV_POSITION, navItem.position)
-            put(COLUMN_NAV_IS_ACTIVE, navItem.isActive)
-            put(COLUMN_NAV_ACTION_TYPE, navItem.actionType)
-            put(COLUMN_NAV_TARGET, navItem.target)
-        }
-        return writableDatabase.insert(NAV_ITEMS_TABLE, null, values)
-    }
-
-    // Method to toggle navigation item active state
-    fun toggleNavigationItem(title: String, isActive: Boolean): Boolean {
-        val values = ContentValues().apply {
-            put(COLUMN_NAV_IS_ACTIVE, isActive)
-        }
-
-        val rowsAffected = writableDatabase.update(
-            NAV_ITEMS_TABLE, values,
-            "$COLUMN_NAV_TITLE = ?", arrayOf(title)
-        )
-        return rowsAffected > 0
-    }
-
-    // Method to get detection display settings
-    fun getDetectionDisplaySettings(): Map<String, Boolean> {
-        return mapOf(
-            "inference_time_visible" to getUIBooleanSetting("inference_time_visible"),
-            "detection_count_visible" to getUIBooleanSetting("detection_count_visible"),
-            "camera_preview_enabled" to getUIBooleanSetting("camera_preview_enabled"),
-            "detection_overlay_enabled" to getUIBooleanSetting("detection_overlay_enabled")
-        )
-    }
-
-    // Method to get button sizes
-    fun getButtonSizes(): Map<String, Int> {
-        return mapOf(
-            "scan_button_size" to getUIIntegerSetting("scan_button_size", 86),
-            "corner_button_size" to getUIIntegerSetting("corner_button_size", 55),
-            "help_button_size" to getUIIntegerSetting("help_button_size", 45)
-        )
-    }
-
-    // Method to add new UI setting
-    fun addUISetting(key: String, value: String, type: String, category: String): Long {
-        val values = ContentValues().apply {
-            put(COLUMN_UI_KEY, key)
-            put(COLUMN_UI_VALUE, value)
-            put(COLUMN_UI_TYPE, type)
-            put(COLUMN_UI_CATEGORY, category)
-        }
-        return writableDatabase.insert(UI_SETTINGS_TABLE, null, values)
-    }
-
-    // Method to add new app text
-    fun addAppText(key: String, value: String, screen: String, element: String, language: String = "en"): Long {
-        val values = ContentValues().apply {
-            put(COLUMN_TEXT_KEY, key)
-            put(COLUMN_TEXT_VALUE, value)
-            put(COLUMN_TEXT_SCREEN, screen)
-            put(COLUMN_TEXT_ELEMENT, element)
-            put(COLUMN_TEXT_LANGUAGE, language)
-        }
-        return writableDatabase.insert(APP_TEXTS_TABLE, null, values)
-    }
-
-    // Method to add new icon
-    fun addIcon(iconData: IconData): Long {
-        val values = ContentValues().apply {
-            put(COLUMN_ICON_KEY, iconData.key)
-            put(COLUMN_ICON_RESOURCE_NAME, iconData.resourceName)
-            put(COLUMN_ICON_CATEGORY, iconData.category)
-            put(COLUMN_ICON_DESCRIPTION, iconData.description)
-        }
-        return writableDatabase.insert(ICONS_TABLE, null, values)
-    }
-
-    // Method to add new color
-    fun addColor(colorData: ColorData): Long {
-        val values = ContentValues().apply {
-            put(COLUMN_COLOR_KEY, colorData.key)
-            put(COLUMN_COLOR_VALUE, colorData.value)
-            put(COLUMN_COLOR_CATEGORY, colorData.category)
-            put(COLUMN_COLOR_DESCRIPTION, colorData.description)
-        }
-        return writableDatabase.insert(COLORS_TABLE, null, values)
-    }
-
-    // Method to add new drawable
-    fun addDrawable(drawableData: DrawableData): Long {
-        val values = ContentValues().apply {
-            put(COLUMN_DRAWABLE_KEY, drawableData.key)
-            put(COLUMN_DRAWABLE_RESOURCE_NAME, drawableData.resourceName)
-            put(COLUMN_DRAWABLE_TYPE, drawableData.type)
-            put(COLUMN_DRAWABLE_CATEGORY, drawableData.category)
-        }
-        return writableDatabase.insert(DRAWABLES_TABLE, null, values)
-    }
-
-    // Method to add new layout element
-    fun addLayoutElement(layoutElement: LayoutElementData): Long {
-        val values = ContentValues().apply {
-            put(COLUMN_LAYOUT_SCREEN, layoutElement.screen)
-            put(COLUMN_LAYOUT_ELEMENT_ID, layoutElement.elementId)
-            put(COLUMN_LAYOUT_ELEMENT_TYPE, layoutElement.elementType)
-            put(COLUMN_LAYOUT_TEXT_KEY, layoutElement.textKey)
-            put(COLUMN_LAYOUT_ICON_KEY, layoutElement.iconKey)
-            put(COLUMN_LAYOUT_COLOR_KEY, layoutElement.colorKey)
-            put(COLUMN_LAYOUT_DRAWABLE_KEY, layoutElement.drawableKey)
-            put(COLUMN_LAYOUT_IS_VISIBLE, layoutElement.isVisible)
-            put(COLUMN_LAYOUT_PROPERTIES, layoutElement.properties)
-        }
-        return writableDatabase.insert(LAYOUT_ELEMENTS_TABLE, null, values)
-    }
-
-    // UTILITY METHODS
-
+    // Utility Methods
     fun getDatabaseStats(): Map<String, Int> {
         return mapOf(
             "total_detections" to getTableCount(DETECTIONS_TABLE),
@@ -1554,5 +1382,29 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         cursor.use {
             return if (it.moveToFirst()) it.getInt(0) else 0
         }
+    }
+
+    // Additional utility methods for debugging
+    fun logDatabaseInfo() {
+        val stats = getDatabaseStats()
+        Log.d(TAG, "=== DATABASE STATISTICS ===")
+        stats.forEach { (table, count) ->
+            Log.d(TAG, "$table: $count records")
+        }
+        Log.d(TAG, "==========================")
+    }
+
+    fun getIngredientsSummary(): String {
+        val ingredients = getUniqueIngredientsWithHighConfidence()
+        return if (ingredients.isNotEmpty()) {
+            "Found ${ingredients.size} ingredients: ${ingredients.joinToString(", ") { it.name }}"
+        } else {
+            "No ingredients detected yet"
+        }
+    }
+
+    fun getRecipesSummary(): String {
+        val recipes = getAllRecipes()
+        return "Available recipes: ${recipes.size} (${recipes.count { it.isDiabeticFriendly }} diabetic-friendly)"
     }
 }
